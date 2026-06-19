@@ -1,0 +1,106 @@
+package com.example.ects
+
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.TextView
+import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
+import java.util.Calendar
+import java.util.concurrent.TimeUnit
+
+class SemestrFragment : Fragment() {
+
+    private lateinit var tvDni: TextView
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var runnable: Runnable
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View? {
+        return inflater.inflate(R.layout.fragment_semestr, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        tvDni = view.findViewById(R.id.tvDniDoKonca)
+        startLicznik()
+
+        val przyciskiSemestralne =
+            mapOf(
+                R.id.btnSem1 to 1,
+                R.id.btnSem2 to 2,
+                R.id.btnSem3 to 3,
+                R.id.btnSem4 to 4,
+                R.id.btnSem5 to 5,
+                R.id.btnSem6 to 6,
+                R.id.btnSem7 to 7
+            )
+
+        for ((idPrzycisk, numerSemestru) in przyciskiSemestralne) {
+            view.findViewById<Button>(idPrzycisk).setOnClickListener {
+                otworzEkranPrzedmiotow(numerSemestru)
+            }
+        }
+
+        view.findViewById<Button>(R.id.btnKalendarz).setOnClickListener {
+            findNavController().navigate(R.id.action_semestrFragment_to_kalendarzFragment)
+        }
+    }
+
+    // Dni do końca semestru
+    private fun startLicznik() {
+        runnable =
+            object : Runnable {
+                override fun run() {
+                    val dzisiaj = Calendar.getInstance()
+                    val koniecSemestru =
+                        Calendar.getInstance().apply {
+                            set(Calendar.MONTH, Calendar.JUNE)
+                            set(Calendar.DAY_OF_MONTH, 30)
+                            set(Calendar.HOUR_OF_DAY, 23)
+                            set(Calendar.MINUTE, 59)
+                            set(Calendar.SECOND, 59)
+                            if (before(dzisiaj)) {
+                                add(Calendar.YEAR, 1)
+                            }
+                        }
+
+                    val roznicaMs = koniecSemestru.timeInMillis - dzisiaj.timeInMillis
+
+                    val dni = TimeUnit.MILLISECONDS.toDays(roznicaMs)
+                    val godziny = TimeUnit.MILLISECONDS.toHours(roznicaMs) % 24
+                    val minuty = TimeUnit.MILLISECONDS.toMinutes(roznicaMs) % 60
+                    val sekundy = TimeUnit.MILLISECONDS.toSeconds(roznicaMs) % 60
+
+                    tvDni.text = getString(R.string.dni_do_konca, dni, godziny, minuty, sekundy)
+
+                    handler.postDelayed(this, 1000)
+                }
+            }
+        handler.post(runnable)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        handler.removeCallbacks(runnable)
+    }
+
+    private fun otworzEkranPrzedmiotow(semestr: Int) {
+        val paczkaDanych =
+            Bundle().apply {
+                putInt("wybrany_semestr", semestr)
+            }
+        findNavController().navigate(
+            R.id.action_semestrFragment_to_przedmiotyFragment,
+            paczkaDanych
+        )
+    }
+}
