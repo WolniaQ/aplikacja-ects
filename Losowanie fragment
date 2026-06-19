@@ -1,0 +1,62 @@
+package com.example.ects
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.TextView
+import androidx.fragment.app.Fragment
+
+class LosowanieFragment : Fragment() {
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View? {
+        return inflater.inflate(R.layout.fragment_losowanie, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        val imgWynik = view.findViewById<ImageView>(R.id.imgWynik)
+        val tvKomunikat = view.findViewById<TextView>(R.id.tvKomunikatWyniku)
+        val btnStart = view.findViewById<Button>(R.id.btnStartLosowania)
+
+        btnStart.setOnClickListener {
+            // Blokada
+            btnStart.isEnabled = false
+            tvKomunikat.text = getString(R.string.losowanie_w_toku)
+
+
+            imgWynik.setImageResource(R.drawable.znak_zapytania)
+
+            // Animacja
+            imgWynik.animate()
+                .rotationBy(1440f)
+                .setDuration(1500)
+                .withEndAction {
+
+
+
+                    val wylosowanaLiczba = (1..100).random()
+
+
+                    if (wylosowanaLiczba <= 50) {
+                        imgWynik.setImageResource(R.drawable.piwo)
+                        tvKomunikat.text = getString(R.string.idz_na_piwo)
+                    } else {
+                        imgWynik.setImageResource(R.drawable.wyklad)
+                        tvKomunikat.text = getString(R.string.idz_na_wyklad)
+                    }
+
+
+                    btnStart.isEnabled = true
+                }
+                .start()
+        }
+    }
+}
