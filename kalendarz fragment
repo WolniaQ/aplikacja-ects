@@ -1,0 +1,148 @@
+package com.example.ects
+
+import android.content.Context
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.*
+import android.graphics.Color
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
+import androidx.fragment.app.Fragment
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+
+class KalendarzFragment : Fragment() {
+
+    private var wybranaData = ""
+    private lateinit var kontenerEgzaminow: LinearLayout
+    private val listaEgzaminowSet = mutableSetOf<String>()
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        return inflater.inflate(R.layout.fragment_kalendarz, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        val calendarView = view.findViewById<CalendarView>(R.id.calendarView)
+        val etNazwa = view.findViewById<EditText>(R.id.etEgzaminNazwa)
+        val spinner = view.findViewById<Spinner>(R.id.spinnerAlarm)
+        val btnZapisz = view.findViewById<Button>(R.id.btnZapiszEgzamin)
+        kontenerEgzaminow = view.findViewById(R.id.kontenerEgzaminow)
+
+        // Domyślnie dzisiejsza data
+        val sdf = SimpleDateFormat("d/M/yyyy", Locale.getDefault())
+        wybranaData = sdf.format(Calendar.getInstance().time)
+
+        val adapter = ArrayAdapter.createFromResource(
+            requireContext(),
+            R.array.przypomnienia_opcje,
+            android.R.layout.simple_spinner_item
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        spinner.adapter = adapter
+
+        //zapamiętane egzaminy z pamięci stałej telefonu
+        val prefs = requireActivity().getSharedPreferences("Egzaminy_Prefs", Context.MODE_PRIVATE)
+        prefs.getStringSet("lista_egzaminow", null)?.let {
+            listaEgzaminowSet.clear()
+            listaEgzaminowSet.addAll(it)
+        }
+
+
+        odswiezListeEgzaminow(prefs)
+
+
+        calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
+            wybranaData = "$dayOfMonth/${month + 1}/$year"
+        }
+
+        // DODAWANIE NOWEGO EGZAMINU
+        btnZapisz.setOnClickListener {
+            val nazwa = etNazwa.text.toString().trim()
+            val przypomnienie = spinner.selectedItem?.toString() ?: ""
+
+            if (nazwa.isEmpty()) {
+                Toast.makeText(context, getString(R.string.wpisz_nazwe_egzaminu), Toast.LENGTH_SHORT).show()
+            } else {
+
+                val nowyEgzaminString = "$nazwa | 📅 $wybranaData | 🔔 $przypomnienie"
+
+                listaEgzaminowSet.add(nowyEgzaminString)
+
+
+                prefs.edit {
+                    putStringSet("lista_egzaminow", listaEgzaminowSet.toSet())
+                }
+
+
+                odswiezListeEgzaminow(prefs)
+                etNazwa.text.clear()
+                Toast.makeText(context, "Zapisano egzamin!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // DYNAMICZNE RENDEROWANIE I USUWANIE ELEMENTÓW
+    private fun odswiezListeEgzaminow(prefs: android.content.SharedPreferences) {
+        kontenerEgzaminow.removeAllViews()
+
+        for (egzaminText in listaEgzaminowSet) {
+
+            val wiersz = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(8, 12, 8, 12)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            // Opis tekstowy
+            val tvOpis = TextView(context).apply {
+                text = egzaminText
+                textSize = 14f
+                        layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+            }
+
+            // Przycisk Usuń
+            val btnUsun = Button(context).apply {
+                text = getString(R.string.usun)
+                textSize = 11f
+                        backgroundTintList = android.content.res.ColorStateList.valueOf(
+                    "#757575".toColorInt()
+                )
+                setTextColor(Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+
+
+                setOnClickListener {
+                    listaEgzaminowSet.remove(egzaminText)
+                    prefs.edit {
+                        putStringSet("lista_egzaminow", listaEgzaminowSet.toSet())
+                    }
+                    odswiezListeEgzaminow(prefs)
+                    Toast.makeText(context, getString(R.string.usunieto_termin), Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            wiersz.addView(tvOpis)
+            wiersz.addView(btnUsun)
+            kontenerEgzaminow.addView(wiersz)
+        }
+    }
+}
