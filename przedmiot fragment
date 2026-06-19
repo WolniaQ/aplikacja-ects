@@ -1,0 +1,262 @@
+package com.example.ects
+
+import android.content.Context
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.CheckBox
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
+import androidx.fragment.app.Fragment
+
+class PrzedmiotyFragment : Fragment() {
+
+    private var zdobyteEcts = 0
+    private lateinit var tvSumaEcts: TextView
+    private lateinit var tvStatusEtapu: TextView
+    private lateinit var kontenerNiezaliczonych: LinearLayout
+    private lateinit var kontenerZaliczonych: LinearLayout
+
+    private var numerSemestru = 1
+
+    private val listaCheckBoxow = mutableListOf<Pair<Przedmiot, CheckBox>>()
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View? {
+        return inflater.inflate(R.layout.fragment_przedmioty, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        numerSemestru = arguments?.getInt("wybrany_semestr") ?: 1
+        view.findViewById<TextView>(R.id.naglowekSemestru).text =
+            getString(R.string.naglowek_semestru, numerSemestru)
+
+        tvSumaEcts = view.findViewById(R.id.tvSumaEcts)
+        tvStatusEtapu = view.findViewById(R.id.tvStatusEtapu)
+
+        kontenerNiezaliczonych = view.findViewById(R.id.kontenerNiezaliczonych)
+        kontenerZaliczonych = view.findViewById(R.id.kontenerZaliczonych)
+
+        val btnZapisz = view.findViewById<Button>(R.id.btnZatwierdzIOblicz)
+        btnZapisz.text = getString(R.string.zapisz_zaliczone)
+
+        val listaPrzedmiotow = pobierzBazePrzedmiotow(numerSemestru)
+        val prefs =
+            requireActivity().getSharedPreferences(
+                "ECTS_Prefs_Sem_$numerSemestru",
+                Context.MODE_PRIVATE
+            )
+
+        zdobyteEcts = 0
+        listaCheckBoxow.clear()
+
+        // Przedmioty
+        for (przedmiot in listaPrzedmiotow) {
+            val checkBox =
+                CheckBox(context).apply {
+                    text =
+                        getString(
+                            R.string.przedmiot_format,
+                            przedmiot.nazwa,
+                            przedmiot.formaZajec,
+                            przedmiot.ects
+                        )
+                    textSize = 14f
+                    setPadding(0, 10, 0, 10)
+
+                    val kluczZapisu = "${przedmiot.nazwa}_${przedmiot.formaZajec}"
+                    val czyZaliczony = prefs.getBoolean(kluczZapisu, false)
+                    isChecked = czyZaliczony
+
+                    if (czyZaliczony) {
+                        zdobyteEcts += przedmiot.ects
+                    }
+
+                    // zmienia punkty w locie ale elementy czekają na kliknięcie przycisku
+                    setOnCheckedChangeListener { _, isChecked ->
+                        if (isChecked) {
+                            zdobyteEcts += przedmiot.ects
+                        } else {
+                            zdobyteEcts -= przedmiot.ects
+                        }
+                        przeliczEctsNaEkranie()
+                    }
+                }
+
+            listaCheckBoxow.add(Pair(przedmiot, checkBox))
+
+            przeniesDoKontenera(checkBox, checkBox.isChecked)
+        }
+
+        przeliczEctsNaEkranie()
+
+        // Przycisk
+        btnZapisz.setOnClickListener {
+            prefs.edit {
+                for ((przedmiot, cb) in listaCheckBoxow) {
+                    val kluczZapisu = "${przedmiot.nazwa}_${przedmiot.formaZajec}"
+                    putBoolean(kluczZapisu, cb.isChecked)
+                    przeniesDoKontenera(cb, cb.isChecked)
+                }
+            }
+        }
+    }
+
+    private fun przeniesDoKontenera(checkBox: CheckBox, doZaliczonych: Boolean) {
+        (checkBox.parent as? ViewGroup)?.removeView(checkBox)
+
+        if (doZaliczonych) {
+            kontenerZaliczonych.addView(checkBox)
+        } else {
+            kontenerNiezaliczonych.addView(checkBox)
+        }
+    }
+
+    private fun przeliczEctsNaEkranie() {
+        tvSumaEcts.text = getString(R.string.suma_ects, zdobyteEcts)
+
+        if (zdobyteEcts >= 30) {
+            tvStatusEtapu.text = getString(R.string.status_pelne)
+            tvStatusEtapu.setTextColor("#2E7D32".toColorInt())
+        } else if (zdobyteEcts >= 15) {
+            val deficyt = 30 - zdobyteEcts
+            tvStatusEtapu.text = getString(R.string.status_warunkowe, deficyt)
+            tvStatusEtapu.setTextColor("#EF6C00".toColorInt())
+        } else {
+            tvStatusEtapu.text = getString(R.string.status_brak)
+            tvStatusEtapu.setTextColor("#D32F2F".toColorInt())
+        }
+    }
+
+    // BAZA - SEMESTRY 1 DO 7
+    private fun pobierzBazePrzedmiotow(semestr: Int): List<Przedmiot> {
+        return when (semestr) {
+            1 ->
+                listOf(
+                    Przedmiot("Algebra z geometrią analityczną", 2, "C"),
+                    Przedmiot("Algebra z geometrią analityczną", 2, "W"),
+                    Przedmiot("Analiza matematyczna 1A", 3, "C"),
+                    Przedmiot("Analiza matematyczna 1A", 5, "W"),
+                    Przedmiot("Etyka w biznesie", 2, "W"),
+                    Przedmiot("Fizyczne podstawy elektroniki", 1, "C"),
+                    Przedmiot("Fizyczne podstawy elektroniki", 1, "W"),
+                    Przedmiot("Fizyka 1.1", 1, "C"),
+                    Przedmiot("Fizyka 1.1", 4, "W"),
+                    Przedmiot("Grafika inżynierska 2D/3D w elektronice", 2, "L"),
+                    Przedmiot("Grafika inżynierska 2D/3D w elektronice", 1, "W"),
+                    Przedmiot("Podstawy metrologii", 1, "W"),
+                    Przedmiot("Podstawy metrologii", 1, "C"),
+                    Przedmiot("Podstawy sieci komputerowych", 1, "L"),
+                    Przedmiot("Podstawy sieci komputerowych", 1, "W"),
+                    Przedmiot("Technologie informacyjne", 1, "W"),
+                    Przedmiot("Technologie informacyjne", 1, "L")
+                )
+            2 ->
+                listOf(
+                    Przedmiot("Analiza matematyczna 2.2 A", 3, "C"),
+                    Przedmiot("Analiza matematyczna 2.2 A", 5, "W"),
+                    Przedmiot("Inżynierska analiza danych", 2, "L"),
+                    Przedmiot("Komunikacja społeczna", 2, "W"),
+                    Przedmiot("Laboratorium podstaw fizyki", 2, "L"),
+                    Przedmiot("Metrologia elektroniczna", 2, "L"),
+                    Przedmiot("Obwody elektroniczne analogowe", 3, "C"),
+                    Przedmiot("Obwody elektroniczne analogowe", 3, "W"),
+                    Przedmiot("Podstawy techniki cyfrowej I", 1, "W"),
+                    Przedmiot("Probabilistyka i statystyka", 2, "C"),
+                    Przedmiot("Probabilistyka i statystyka", 1, "W"),
+                    Przedmiot("Programowanie w C/C++", 2, "L"),
+                    Przedmiot("Programowanie w C/C++", 2, "W"),
+                    Przedmiot("Trening funkcjonalny", 0, "C")
+                )
+            3 ->
+                listOf(
+                    Przedmiot("Algorytmy przetwarzania danych", 1, "L"),
+                    Przedmiot("Algorytmy przetwarzania danych", 2, "W"),
+                    Przedmiot("Język angielski /C1.1", 2, "C"),
+                    Przedmiot("Języki skryptowe", 1, "L"),
+                    Przedmiot("Języki skryptowe", 1, "W"),
+                    Przedmiot("Nowoczesne tendencje zarządzania", 1, "W"),
+                    Przedmiot("Podstawy techniki cyfrowej II", 2, "L"),
+                    Przedmiot("Podstawy techniki cyfrowej II", 2, "W"),
+                    Przedmiot("Podstawy techniki sensorowej", 2, "L"),
+                    Przedmiot("Podstawy techniki sensorowej", 3, "W"),
+                    Przedmiot("Podstawy telekomunikacji cyfrowej", 2, "W"),
+                    Przedmiot("Programowanie obiektowe", 1, "L"),
+                    Przedmiot("Programowanie obiektowe", 2, "W"),
+                    Przedmiot("Protokoły i interfejsy", 1, "S"),
+                    Przedmiot("Półprzewodnikowe elementy dyskretne i scalone", 3, "L"),
+                    Przedmiot("Półprzewodnikowe elementy dyskretne i scalone", 2, "W"),
+                    Przedmiot("Układy elektroniczne analogowe", 1, "L"),
+                    Przedmiot("Układy elektroniczne analogowe", 1, "W")
+                )
+            4 ->
+                listOf(
+                    Przedmiot("Android", 3, "L"),
+                    Przedmiot("Android", 3, "W"),
+                    Przedmiot("Elektronika przyrządów półprzewodnikowych", 3, "L"),
+                    Przedmiot("Język angielski / C1.2", 3, "C"),
+                    Przedmiot("Kwantowe przetwarzanie danych", 2, "W"),
+                    Przedmiot("Mikrosystemy", 3, "W"),
+                    Przedmiot("Programowanie graficzne", 2, "L"),
+                    Przedmiot("Programowanie graficzne", 1, "W"),
+                    Przedmiot("Przetwarzanie sygnałów", 1, "L"),
+                    Przedmiot("Przetwarzanie sygnałów", 3, "W"),
+                    Przedmiot("Przetworniki A/C i C/A", 1, "L"),
+                    Przedmiot("Przetworniki A/C i C/A", 1, "W"),
+                    Przedmiot("Systemy bezprzewodowe", 2, "L"),
+                    Przedmiot("Systemy bezprzewodowe", 1, "W"),
+                    Przedmiot("Zasilanie układów elektronicznych", 1, "W"),
+                    Przedmiot("Zumba", 0, "C")
+                )
+            5 ->
+                listOf(
+                    Przedmiot("Komputerowe wspomaganie projektowania", 2, "L"),
+                    Przedmiot("Mikrosystemy użytkowe", 2, "L"),
+                    Przedmiot("Mikrosystemy użytkowe", 2, "P"),
+                    Przedmiot("Montaż w elektronice", 2, "W"),
+                    Przedmiot("Montaż w elektronice", 2, "L"),
+                    Przedmiot("Optoelektronika", 3, "W"),
+                    Przedmiot("Optoelektronika", 2, "L"),
+                    Przedmiot("Projektowanie układów VLSI", 3, "W"),
+                    Przedmiot("Projektowanie układów VLSI", 2, "L"),
+                    Przedmiot("Weryfikacja systemów cyfrowych", 2, "W"),
+                    Przedmiot("Weryfikacja systemów cyfrowych", 2, "P"),
+                    Przedmiot("Zastosowania mikrokontrolerów", 3, "W"),
+                    Przedmiot("Zastosowania mikrokontrolerów", 2, "L")
+                )
+            6 ->
+                listOf(
+                    Przedmiot("Inteligentna elektronika - lab. otwarte", 2, "L"),
+                    Przedmiot("Inżynieria testów oraz jakości", 2, "W"),
+                    Przedmiot("Inżynieria testów oraz jakości", 2, "P"),
+                    Przedmiot("Podstawy automatyki cyfrowej", 2, "W"),
+                    Przedmiot("Podstawy automatyki cyfrowej", 2, "L"),
+                    Przedmiot("Programowanie mikrokontrolerów", 3, "W"),
+                    Przedmiot("Programowanie mikrokontrolerów", 3, "P"),
+                    Przedmiot("Programowanie układów logicznych", 2, "W"),
+                    Przedmiot("Programowanie układów logicznych", 3, "P"),
+                    Przedmiot("Telekomunikacja światłowodowa", 3, "W"),
+                    Przedmiot("Telekomunikacja światłowodowa", 2, "L"),
+                    Przedmiot("Telekomunikacja światłowodowa", 2, "P")
+                )
+            7 ->
+                listOf(
+                    Przedmiot("Bezpieczeństwo danych", 4, "W"),
+                    Przedmiot("Sztuczna inteligencja", 4, "W"),
+                    Przedmiot("Seminarium dyplomowe", 3, "S"),
+                    Przedmiot("Praktyka zawodowa", 4, "Praktyka"),
+                    Przedmiot("Praca dyplomowa", 15, "Projekt")
+                )
+            else -> listOf()
+        }
+    }
+}
